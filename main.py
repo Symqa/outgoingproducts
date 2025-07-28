@@ -13,7 +13,7 @@ async def lifespan(app_: FastAPI):
     print('Bot is ready')
     yield
 
-app = FastAPI(title="Свежести и Тухлости")
+app = FastAPI(title="Свежести и Тухлости", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

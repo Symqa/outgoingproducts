@@ -22,12 +22,13 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(50))
     user: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
     
-    #produced
-    #expritation_date
-    #photo
-    #count
-    #category
 
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+#produced
+#expritation_date
+#photo
+#count
+#category
