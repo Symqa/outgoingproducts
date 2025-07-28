@@ -45,3 +45,12 @@ async def get_products(user_id):
 async def get_products_count(user_id):
     async with async_session() as session:
         return await session.scalar(select(func.count(Product.id)).where(Product.id == user_id))
+    
+async def add_product(user_id, name):
+    async with async_session() as session:
+        new_product = Product(
+            name=name,
+            user=user_id
+        )
+        session.add(new_product)
+        await session.commit()

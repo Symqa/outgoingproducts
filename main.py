@@ -7,6 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import init_db
 import requests as rq
 
+
+class AddProduct(BaseModel):
+    id: int
+    name: str
+    user: int
+
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     await init_db()
@@ -24,7 +30,7 @@ app.add_middleware(
 )
 
 @app.get("/api/products/{tg_id}")
-async def tasks(tg_id: int):
+async def products(tg_id: int):
     user = await rq.add_user(tg_id)
     return await rq.get_products(user.id)
 
@@ -33,3 +39,9 @@ async def profile(tg_id: int):
     user = await rq.add_user(tg_id)
     products_count = await rq.get_products_count(user.id)
     return {'CountProducts': products_count}
+
+@app.get("/api/add")
+async def add_product(product: AddProduct):
+    user = await rq.add_user(product.user)
+    await rq.add_product(user.id, product.name)
+    return {'status': 'ok'}
