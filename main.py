@@ -1,18 +1,19 @@
 from contextlib import asynccontextmanager
 
+from typing import Annotated
 from pydantic import BaseModel
-from fastapi import FastAPI
+from fastapi import FastAPI, Form
 from fastapi.middleware.cors import CORSMiddleware
+import json
 
 from models import init_db
-import requests as rq
+import requests_db as rq
 
 
 class AddProduct(BaseModel):
-    id: int
-    name: str
-    user: int
-
+    image: object
+    data: str
+    
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     await init_db()
@@ -32,7 +33,7 @@ app.add_middleware(
 @app.get("/api/products/{tg_id}")
 async def products(tg_id: int):
     user = await rq.add_user(tg_id)
-    return await rq.get_products(user.id)
+    return await rq.get_products(tg_id)
 
 @app.get("/api/main/{tg_id}")
 async def profile(tg_id: int):
@@ -40,8 +41,32 @@ async def profile(tg_id: int):
     products_count = await rq.get_products_count(user.id)
     return {'CountProducts': products_count}
 
-@app.get("/api/add")
-async def add_product(product: AddProduct):
-    user = await rq.add_user(product.user)
-    await rq.add_product(user.id, product.name)
-    return {'status': 'ok'}
+
+@app.get("/api/get_user/{tg_id}")
+async def get_user(tg_id: int):
+    return await rq.get_user_validate(tg_id)
+
+@app.post("/api/add")
+async def add_product(product: Annotated[AddProduct, Form()]):
+
+    data = json.loads(product.data)
+    
+    # with open('test.png', 'wb') as file:
+    #     content = await product.image.read()
+    #     file.write(content)
+    
+    user = await rq.add_user(data['user'])
+    await rq.add_product(user.id,
+                        data['name'],
+                        data['count'],
+                        data['produced'],
+                        data['expire'],
+                        data['category'],
+                        data['shop'],
+                        product.image)
+    return {'status': '200'}
+
+@app.get("/api/profile/change/{tg_id}")
+async def update_profile(tg_id: int, time: int):
+    await rq.update_user_time(tg_id, time)
+    

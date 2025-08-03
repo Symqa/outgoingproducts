@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, BigInteger
+from sqlalchemy import ForeignKey, String, BigInteger, DateTime, BLOB, LargeBinary
 from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 
@@ -14,14 +14,21 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     tg_id = mapped_column(BigInteger)
+    time: Mapped[int]
 
 class Product(Base):
     __tablename__ = 'products'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(50))
     user: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
-    
+    name: Mapped[str] = mapped_column(String(50))
+    count: Mapped[int]
+    produced: Mapped[str] = mapped_column(String(100))
+    expire: Mapped[str] = mapped_column(String(100))
+    category: Mapped[str] = mapped_column(String(50))
+    shop: Mapped[str] = mapped_column(String(50))
+    image: Mapped[str] = mapped_column(String())
+    user_time: Mapped[int]
 
 async def init_db():
     async with engine.begin() as conn:
