@@ -32,6 +32,7 @@ app.add_middleware(
 
 @app.get("/api/products/{tg_id}")
 async def products(tg_id: int):
+    print('да')
     user = await rq.add_user(tg_id)
     return await rq.get_products(tg_id)
 
