@@ -29,6 +29,12 @@ class Product(Base):
     shop: Mapped[str] = mapped_column(String(50))
     image: Mapped[str] = mapped_column(String())
     user_time: Mapped[int]
+    progress_percent: Mapped[int]
+    progress_color: Mapped[str] = mapped_column(String(50))
+    is_50: Mapped[bool]
+    is_25: Mapped[bool]
+    is_10: Mapped[bool]
+    is_bad: Mapped[bool]
 
 async def init_db():
     async with engine.begin() as conn:

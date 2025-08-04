@@ -18,6 +18,12 @@ class ProductSchema(BaseModel):
     shop: str
     image: str
     user_time: int
+    progress_percent: int
+    progress_color: str
+    is_50: bool
+    is_25: bool
+    is_10: bool
+    is_bad: bool
 
     @model_validator(mode='after')
     def change_produced_time(self):
@@ -34,6 +40,22 @@ class ProductSchema(BaseModel):
         self.produced = new_time_produced.isoformat()
         self.expire = new_time_expire.isoformat()
         
+        now_time = datetime.datetime.now(datetime.timezone.utc)
+
+        date_time_delta = date_time_expire - date_time_produced
+        now_seconds_delta = date_time_expire - now_time
+
+        date_time_delta_seconds = date_time_delta.total_seconds()
+        now_seconds_delta_seconds = now_seconds_delta.total_seconds()
+
+        self.progress_percent = 100 - int(now_seconds_delta_seconds / date_time_delta_seconds * 100)
+        if self.progress_percent > 50:
+            self.progress_color = 'green'
+        elif self.progress_percent < 50 and self.progress_percent > 25:
+            self.progress_color = 'orange'
+        else:
+            self.progress_color = 'red'         
+
         return self
     
     model_config = ConfigDict(from_attributes=True)
@@ -110,6 +132,25 @@ async def add_product(user_id, name, count, produced, expire, category, shop, im
             print('Не удалось обработать картинку. \n Ошибка: ', e)
             return 
         
+        is_50 = is_25 = is_10 = False
+
+        now_time = datetime.datetime.now(datetime.timezone.utc)
+        delta = (expire_datetime - produced_datetime).total_seconds()
+        now_delta = (expire_datetime - now_time)
+
+        percent = 100 - int(now_delta / delta * 100)
+
+        if percent > 50:
+            color = 'green'
+        elif percent < 50 and percent > 25:
+            color = 'orange'
+            is_50 = True
+        else:
+            is_50 = True
+            is_25 = True
+            color = 'red'
+
+
         new_product = Product(
             name=name,
             user=user_id,
@@ -119,7 +160,13 @@ async def add_product(user_id, name, count, produced, expire, category, shop, im
             category=category,
             shop=shop,
             image="data:image/png;base64," + image_binary,
-            user_time=user_time
+            user_time=user_time,
+            progress_percent = percent,
+            progress_color=color,
+            is_50 = True,
+            is_25 = True,
+            is_10 = True,
+            is_bad = False
         )
         session.add(new_product)
         await session.commit()
