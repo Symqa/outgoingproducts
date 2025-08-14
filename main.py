@@ -13,7 +13,11 @@ import requests_db as rq
 class AddProduct(BaseModel):
     image: object
     data: str
-    
+
+class UserTimeUpdate(BaseModel):
+    user_id: int
+    time: int
+
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     await init_db()
@@ -30,11 +34,16 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-@app.get("/api/products/{tg_id}")
-async def products(tg_id: int):
-    print('да')
+@app.get("/api/products/{tg_id}/{shop}")
+async def products(tg_id: int, shop: str):
     user = await rq.add_user(tg_id)
-    return await rq.get_products(tg_id)
+    return await rq.get_products(tg_id, shop)
+
+
+@app.get("/api/delete/{product_id}")
+async def product_to_delete(product_id: int):
+    await rq.delete_product(product_id)
+
 
 @app.get("/api/main/{tg_id}")
 async def profile(tg_id: int):
@@ -45,7 +54,9 @@ async def profile(tg_id: int):
 
 @app.get("/api/get_user/{tg_id}")
 async def get_user(tg_id: int):
-    return await rq.get_user_validate(tg_id)
+    user = await rq.get_user_validate(tg_id)
+    count_products = await rq.get_products_count(tg_id)
+    return {'user': user, 'count_products': count_products}
 
 @app.post("/api/add")
 async def add_product(product: Annotated[AddProduct, Form()]):
@@ -67,7 +78,9 @@ async def add_product(product: Annotated[AddProduct, Form()]):
                         product.image)
     return {'status': '200'}
 
-@app.get("/api/profile/change/{tg_id}")
-async def update_profile(tg_id: int, time: int):
-    await rq.update_user_time(tg_id, time)
+@app.post("/api/profile/change")
+async def update_profile(userTime: UserTimeUpdate):
+    print(userTime)
+    await rq.update_user_time(userTime.user_id, userTime.time)
+    return {'status': '200'}
     

@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, delete, func
+from sqlalchemy import select, update, delete, func, values
 from models import async_session, User, Product
 from pydantic import BaseModel, ConfigDict, model_validator
 from typing import List
@@ -20,10 +20,6 @@ class ProductSchema(BaseModel):
     user_time: int
     progress_percent: int
     progress_color: str
-    is_50: bool
-    is_25: bool
-    is_10: bool
-    is_bad: bool
 
     @model_validator(mode='after')
     def change_produced_time(self):
@@ -37,13 +33,13 @@ class ProductSchema(BaseModel):
         new_time_produced = date_time_produced + offset
         new_time_expire = date_time_expire + offset
 
-        self.produced = new_time_produced.isoformat()
-        self.expire = new_time_expire.isoformat()
+        self.produced = new_time_produced.strftime("%B %d, %H:%M")
+        self.expire = new_time_expire.strftime("%B %d, %H:%M")
         
         now_time = datetime.datetime.now(datetime.timezone.utc)
 
         date_time_delta = date_time_expire - date_time_produced
-        now_seconds_delta = date_time_expire - now_time
+        now_seconds_delta = now_time - date_time_produced
 
         date_time_delta_seconds = date_time_delta.total_seconds()
         now_seconds_delta_seconds = now_seconds_delta.total_seconds()
@@ -54,6 +50,8 @@ class ProductSchema(BaseModel):
         elif self.progress_percent < 50 and self.progress_percent > 25:
             self.progress_color = 'orange'
         else:
+            if self.progress_percent < 0:
+                self.progress_percent = 0
             self.progress_color = 'red'         
 
         return self
@@ -88,22 +86,58 @@ async def get_user_validate(tg_id):
     return serialized_user
 
 
-async def get_products(user_id):
+async def get_products(user_id, shop):
     async with async_session() as session:
-        products = await session.scalars(
-            select(Product).where(Product.user == user_id)
-        )
+        if shop == 'Все':
+            products = await session.scalars(
+                select(Product).where(Product.user == user_id)
+            )
+        else:
+            products = await session.scalars(
+                select(Product).where(Product.user==user_id, Product.shop == shop)
+            )
 
         serialized_products = [
             ProductSchema.model_validate(p).model_dump() for p in products
         ]
-        print(serialized_products)
+        for product in serialized_products:
+            print(product['name'])
         return serialized_products
+
+
+async def delete_product(product_id):
+    async with async_session() as session:
+        stmt = delete(Product).where(Product.id == product_id)
+        await session.execute(stmt)
+        await session.commit()
+
+# async def get_warning_products(user_id):
+#     async with async_session() as session:
+#         products = await session.scalars(
+#             select(Product).where(Product.user == user_id, Product.progress_percent <= 25, Product.progress_percent > 0)
+#         )
+#         serialized_products = [
+#             ProductSchema.model_validate(p).model_dump() for p in products
+#         ]
+#         print(serialized_products)
+#         return serialized_products
+
+
+# async def get_expired_products(user_id):
+#     async with async_session() as session:
+#         products = await session.scalars(
+#             select(Product).where(Product.user == user_id, Product.progress_percent == 0)
+#         )
+#         serialized_products = [
+#             ProductSchema.model_validate(p).model_dump() for p in products
+#         ]
+#         print(serialized_products)
+#         return serialized_products
 
 
 async def get_products_count(user_id):
     async with async_session() as session:
-        return await session.scalar(select(func.count(Product.id)).where(Product.id == user_id))
+        return await session.scalar(select((func.count())).where(Product.user == user_id))
     
 async def add_product(user_id, name, count, produced, expire, category, shop, image):
     async with async_session() as session:
@@ -116,7 +150,8 @@ async def add_product(user_id, name, count, produced, expire, category, shop, im
             produced['day'],
             produced['hour'],
             produced['minutes'],
-            0
+            0,
+            tzinfo=datetime.timezone.utc
         )
 
         expire_datetime = datetime.datetime(
@@ -124,30 +159,29 @@ async def add_product(user_id, name, count, produced, expire, category, shop, im
             expire['month'],
             expire['day'],
             expire['hour'],
-            expire['minutes']
+            expire['minutes'],
+            0,
+            tzinfo=datetime.timezone.utc
         )
+
         try:
             image_binary = base64.b64encode(await image.read()).decode('utf-8')
         except Exception as e:
             print('Не удалось обработать картинку. \n Ошибка: ', e)
             return 
         
-        is_50 = is_25 = is_10 = False
 
         now_time = datetime.datetime.now(datetime.timezone.utc)
         delta = (expire_datetime - produced_datetime).total_seconds()
-        now_delta = (expire_datetime - now_time)
+        now_delta = (expire_datetime - now_time).total_seconds()
 
-        percent = 100 - int(now_delta / delta * 100)
+        percent = int(now_delta / delta * 100)
 
         if percent > 50:
             color = 'green'
         elif percent < 50 and percent > 25:
             color = 'orange'
-            is_50 = True
         else:
-            is_50 = True
-            is_25 = True
             color = 'red'
 
 
@@ -163,10 +197,6 @@ async def add_product(user_id, name, count, produced, expire, category, shop, im
             user_time=user_time,
             progress_percent = percent,
             progress_color=color,
-            is_50 = True,
-            is_25 = True,
-            is_10 = True,
-            is_bad = False
         )
         session.add(new_product)
         await session.commit()
@@ -175,9 +205,13 @@ async def add_product(user_id, name, count, produced, expire, category, shop, im
 
 async def update_user_time(tg_id, time):
     async with async_session() as session:
-        user = await add_user(tg_id)
-        user.time = time
-        await session.flush()
+    
+        stmt = (
+            update(User)
+            .where(User.id == tg_id)
+            .values(time=time)
+        )
+        await session.execute(stmt)
         await session.commit()
 
 async def get_product_by_id(product_id):
